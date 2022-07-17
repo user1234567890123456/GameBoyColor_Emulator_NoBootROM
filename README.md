@@ -1,5 +1,5 @@
 # GameBoyColor_Emulator_NoBootROM
-GameBoyColor Emulator (nobootrom)
+GameBoyColor Emulator (nobootrom)  
 <br>
 https://github.com/user1234567890123456/GameBoyColor_Emulator <- これのBootROMなし版です  
 BootROMを使用していないのでバイナリファイルを配布することができます  

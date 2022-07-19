@@ -1132,6 +1132,7 @@ private:
 				uint8_t b_right = (key->get_input_state__GBX__(INPUT_MY_ID_RIGHT) != 0) ? 1 : 0;
 	
 				read_value = (gbx_ram.RAM[0xFF00] & 0b00110000);
+				read_value |= 0b11000000;//未使用部分は1にする
 				read_value |= ((~((b_down << 3) | (b_up << 2) | (b_left << 1) | b_right)) & 0b00001111);
 			}
 			else if ((gbx_ram.RAM[0xFF00] & 0b00100000) == 0) {//アクションキー
@@ -1141,11 +1142,13 @@ private:
 				uint8_t b_a = (key->get_input_state__GBX__(INPUT_MY_ID_A) != 0) ? 1 : 0;
 	
 				read_value = (gbx_ram.RAM[0xFF00] & 0b00110000);
+				read_value |= 0b11000000;//未使用部分は1にする
 				read_value |= ((~((b_start << 3) | (b_select << 2) | (b_b << 1) | b_a)) & 0b00001111);
 			}
 			else {
 				read_value = gbx_ram.RAM[0xFF00] & 0b00110000;
-				read_value |= 0b00001111;
+				//read_value |= 0b00001111;
+				read_value |= 0b11001111;//未使用部分は1にする
 			}
 		}
 		//=================================================================================

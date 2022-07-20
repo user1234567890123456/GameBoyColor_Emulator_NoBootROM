@@ -23,6 +23,9 @@ using namespace std;
 class GameBoyColor
 {
 private:
+	uint64_t frame_counter = 0;
+
+
 	uint32_t rom_crc32 = 0;
 
 
@@ -850,6 +853,52 @@ private:
 	};
 	CLOCK_TYPE__MBC3 clock_type__mbc3;
 
+#define RTC_SAVEDATA_SIZE 48
+#define RTC_DATA_SIZE 0x05
+#define RTC_OFFSET_SECONDS 0x00
+#define RTC_OFFSET_MINUTES 0x01
+#define RTC_OFFSET_HOURS 0x02
+#define RTC_OFFSET_DAY_LOW 0x03
+#define RTC_OFFSET_DAY_HIGH 0x04
+	uint8_t RTC_data[RTC_DATA_SIZE] = { 0x00 };
+	uint8_t latched_RTC_data[RTC_DATA_SIZE] = { 0x00 };
+	bool latched_flag = false;
+	void RTC_time_lapse__1sec() {
+		RTC_data[RTC_OFFSET_SECONDS]++;
+		if (RTC_data[RTC_OFFSET_SECONDS] >= 60) {
+			RTC_time_lapse__1min();
+		}
+	}
+	void RTC_time_lapse__1min() {
+		RTC_data[RTC_OFFSET_SECONDS] = 0;
+		RTC_data[RTC_OFFSET_MINUTES]++;
+		if (RTC_data[RTC_OFFSET_MINUTES] >= 60) {
+			RTC_time_lapse__1hou();
+		}
+	}
+	void RTC_time_lapse__1hou() {
+		RTC_data[RTC_OFFSET_MINUTES] = 0;
+		RTC_data[RTC_OFFSET_HOURS]++;
+		if (RTC_data[RTC_OFFSET_HOURS] >= 24) {
+			RTC_time_lapse__1day();
+		}
+	}
+	void RTC_time_lapse__1day() {
+		RTC_data[RTC_OFFSET_HOURS] = 0;
+		RTC_data[RTC_OFFSET_DAY_LOW]++;
+		if (RTC_data[RTC_OFFSET_DAY_LOW] == 0) {//256日経過したとき(オーバーフローして0になったとき)
+			//RTC_data[RTC_OFFSET_DAY_LOW] = 0;
+
+			if ((RTC_data[RTC_OFFSET_DAY_HIGH] & 0b00000001) != 0) {
+				RTC_data[RTC_OFFSET_DAY_HIGH] |= 0b10000000;
+				RTC_data[RTC_OFFSET_DAY_HIGH] &= 0b11000000;
+			}
+			else {
+				RTC_data[RTC_OFFSET_DAY_HIGH] |= 0b00000001;
+			}
+		}
+	}
+
 	uint8_t* get_read_ROM_address() {
 		uint32_t use_rom_bank_no = 0;
 
@@ -1100,14 +1149,32 @@ private:
 				read_value = *(getMBC2_RAM_address(read_address));
 			}
 			else if (cart_mbc_type == CART_MBC_TYPE::MBC3 && bank_mode == BankMode::RTC) {//MBC3でRTC読み取りのとき
-				/*
-				TODO
-				RTCレジスタの読み取りを実装する
-				*/
-				read_value = 0x00;
 				//M_debug_printf("[MBC3] 読み込み A000-BFFF - RTCレジスタ\n");
 				//M_debug_printf("PC:0x%04x A:0x%02x, BC:0x%04x, DE:0x%04x, HL:0x%04x, Flags:0x%02x, SP:0x%04x\n",
 				//	gbx_register.PC, gbx_register.A, gbx_register.BC, gbx_register.DE, gbx_register.HL, gbx_register.Flags, gbx_register.SP);
+
+				uint8_t* RTC_data_ptr;
+				if (latched_flag == true) {
+					RTC_data_ptr = latched_RTC_data;
+				}
+				else {
+					RTC_data_ptr = RTC_data;
+				}
+				if (clock_type__mbc3 == CLOCK_TYPE__MBC3::SECONDS) {
+					read_value = (RTC_data_ptr[RTC_OFFSET_SECONDS] & 0b00111111);
+				}
+				else if (clock_type__mbc3 == CLOCK_TYPE__MBC3::MINUTES) {
+					read_value = (RTC_data_ptr[RTC_OFFSET_MINUTES] & 0b00111111);
+				}
+				else if (clock_type__mbc3 == CLOCK_TYPE__MBC3::HOURS) {
+					read_value = (RTC_data_ptr[RTC_OFFSET_HOURS] & 0b00011111);
+				}
+				else if (clock_type__mbc3 == CLOCK_TYPE__MBC3::DAY_LOW) {
+					read_value = RTC_data_ptr[RTC_OFFSET_DAY_LOW];
+				}
+				else {//DAY_HIGH
+					read_value = (RTC_data_ptr[RTC_OFFSET_DAY_HIGH] & 0b11000001);
+				}
 			}
 			else if (cart_mbc_type == CART_MBC_TYPE::HuC1 && bank_mode == BankMode::IR) {//ROMのタイプがHuC1かつIRモードのとき) {
 				/*
@@ -1444,7 +1511,7 @@ private:
 				//M_debug_printf("PC:0x%04x A:0x%02x, BC:0x%04x, DE:0x%04x, HL:0x%04x, Flags:0x%02x, SP:0x%04x\n",
 				//	gbx_register.PC, gbx_register.A, gbx_register.BC, gbx_register.DE, gbx_register.HL, gbx_register.Flags, gbx_register.SP);
 
-				if ((value & 0b00001111) == 0x0A) {
+				if (value == 0x0A) {
 					SRAM_Enable_Flag = true;
 					RTC_Enable_Flag = true;
 				}
@@ -1555,7 +1622,7 @@ private:
 					bank_mode = BankMode::SRAM;
 					sram_bank_no = (value & 0b00000011);
 				}
-				else if (value <= 0x0C) {
+				else {
 					bank_mode = BankMode::RTC;
 	
 					if (value == 0x08) {
@@ -1603,14 +1670,17 @@ private:
 				//何もしない
 			}
 			else if (cart_mbc_type == CART_MBC_TYPE::MBC3) {
-				/*
-				TODO
-				現在の時刻の保存を実装する
-				*/
-
 				//M_debug_printf("[MBC3] 書き込み 6000-7FFF - ラッチクロックデータ\n");
 				//M_debug_printf("PC:0x%04x A:0x%02x, BC:0x%04x, DE:0x%04x, HL:0x%04x, Flags:0x%02x, SP:0x%04x\n",
 				//	gbx_register.PC, gbx_register.A, gbx_register.BC, gbx_register.DE, gbx_register.HL, gbx_register.Flags, gbx_register.SP);
+
+				if (value == 0x01) {
+					latched_flag = false;
+				}
+				else if (value == 0x00) {
+					latched_flag = true;
+					memcpy(latched_RTC_data, RTC_data, RTC_DATA_SIZE);
+				}
 			}
 			else if (cart_mbc_type == CART_MBC_TYPE::MBC5) {
 				//何もしない
@@ -1625,15 +1695,36 @@ private:
 			if (cart_mbc_type == CART_MBC_TYPE::MBC2) {//MBC2のとき
 				*(getMBC2_RAM_address(write_address)) = value;
 			}
-			else if (cart_mbc_type == CART_MBC_TYPE::MBC3 && bank_mode == BankMode::RTC) {//ROMのタイプがMBC3かつRTCモードのとき
-				/*
-				TODO
-				RTCレジスタへの書き込みを実装する
-				*/
-
+			else if (cart_mbc_type == CART_MBC_TYPE::MBC3) {//ROMのタイプがMBC3のとき
 				//M_debug_printf("[MBC3] 書き込み A000-BFFF - RTCレジスタ\n");
 				//M_debug_printf("PC:0x%04x A:0x%02x, BC:0x%04x, DE:0x%04x, HL:0x%04x, Flags:0x%02x, SP:0x%04x\n",
 				//	gbx_register.PC, gbx_register.A, gbx_register.BC, gbx_register.DE, gbx_register.HL, gbx_register.Flags, gbx_register.SP);
+
+				if (bank_mode == BankMode::RTC) {//RTCモードのとき
+					if (RTC_Enable_Flag == true) {
+						if (clock_type__mbc3 == CLOCK_TYPE__MBC3::SECONDS) {
+							RTC_data[RTC_OFFSET_SECONDS] = (value & 0b00111111);
+						}
+						else if (clock_type__mbc3 == CLOCK_TYPE__MBC3::MINUTES) {
+							RTC_data[RTC_OFFSET_MINUTES] = (value & 0b00111111);
+						}
+						else if (clock_type__mbc3 == CLOCK_TYPE__MBC3::HOURS) {
+							RTC_data[RTC_OFFSET_HOURS] = (value & 0b00011111);
+						}
+						else if (clock_type__mbc3 == CLOCK_TYPE__MBC3::DAY_LOW) {
+							RTC_data[RTC_OFFSET_DAY_LOW] = value;
+						}
+						else {//DAY_HIGH
+							RTC_data[RTC_OFFSET_DAY_HIGH] = (value & 0b11000001);
+						}
+					}
+				}
+				else {//SRAMモードのとき
+					if (SRAM_Enable_Flag == true) {
+						uint8_t* read_SRAM_address = get_read_SRAM_address();
+						read_SRAM_address[write_address - 0xA000] = value;
+					}
+				}
 			}
 			else if (cart_mbc_type == CART_MBC_TYPE::HuC1 && bank_mode == BankMode::IR) {//ROMのタイプがHuC1かつIRモードのとき
 				if (value == 0x00) {
@@ -2031,9 +2122,40 @@ private:
 			}
 
 			/*
-			TODO
-			RTCレジスタの保存を実装する
+			offset  size    desc
+			0       4       time seconds
+			4       4       time minutes
+			8       4       time hours
+			12      4       time days
+			16      4       time days high
+			20      4       latched time seconds
+			24      4       latched time minutes
+			28      4       latched time hours
+			32      4       latched time days
+			36      4       latched time days high
+			40      8       unix timestamp when saving (64 bits little endian)
 			*/
+			//RTCレジスタの保存をする
+			uint8_t RTC_savedata_data[RTC_SAVEDATA_SIZE] = { 0x00 };
+			RTC_savedata_data[0] = RTC_data[RTC_OFFSET_SECONDS];
+			RTC_savedata_data[4] = RTC_data[RTC_OFFSET_MINUTES];
+			RTC_savedata_data[8] = RTC_data[RTC_OFFSET_HOURS];
+			RTC_savedata_data[12] = RTC_data[RTC_OFFSET_DAY_LOW];
+			RTC_savedata_data[16] = RTC_data[RTC_OFFSET_DAY_HIGH];
+			RTC_savedata_data[20] = latched_RTC_data[RTC_OFFSET_SECONDS];
+			RTC_savedata_data[24] = latched_RTC_data[RTC_OFFSET_MINUTES];
+			RTC_savedata_data[28] = latched_RTC_data[RTC_OFFSET_HOURS];
+			RTC_savedata_data[32] = latched_RTC_data[RTC_OFFSET_DAY_LOW];
+			RTC_savedata_data[36] = latched_RTC_data[RTC_OFFSET_DAY_HIGH];
+			time_t now_time;
+			time(&now_time);
+			memcpy((void*)(RTC_savedata_data + 40), &now_time, sizeof(time_t));
+			if (fwrite(RTC_savedata_data, 1, RTC_SAVEDATA_SIZE, savedata_fp) != RTC_SAVEDATA_SIZE) {
+				goto save_gamedata_error;
+			}
+			M_debug_printf("*********************************************\n");
+			M_debug_printf("<RTC SAVE> now_time = %lld\n", now_time);
+			M_debug_printf("*********************************************\n");
 		}
 		//else if (cart_mbc_type == CART_MBC_TYPE::OTHER) {
 		else {//OTHER
@@ -2096,9 +2218,53 @@ private:
 			}
 
 			/*
-			TODO
-			RTCレジスタの読み込みを実装する
+			offset  size    desc
+			0       4       time seconds
+			4       4       time minutes
+			8       4       time hours
+			12      4       time days
+			16      4       time days high
+			20      4       latched time seconds
+			24      4       latched time minutes
+			28      4       latched time hours
+			32      4       latched time days
+			36      4       latched time days high
+			40      8       unix timestamp when saving (64 bits little endian)
 			*/
+			//RTCレジスタの読み込みをする
+			uint8_t RTC_savedata_data[RTC_SAVEDATA_SIZE] = { 0x00 };
+
+			if (fread(RTC_savedata_data, 1, RTC_SAVEDATA_SIZE, savedata_fp) != RTC_SAVEDATA_SIZE) {
+				goto load_gamedata_error;
+			}
+
+			RTC_data[RTC_OFFSET_SECONDS] = RTC_savedata_data[0];
+			RTC_data[RTC_OFFSET_MINUTES] = RTC_savedata_data[4];
+			RTC_data[RTC_OFFSET_HOURS] = RTC_savedata_data[8];
+			RTC_data[RTC_OFFSET_DAY_LOW] = RTC_savedata_data[12];
+			RTC_data[RTC_OFFSET_DAY_HIGH] = RTC_savedata_data[16];
+
+			latched_RTC_data[RTC_OFFSET_SECONDS] = RTC_savedata_data[20];
+			latched_RTC_data[RTC_OFFSET_MINUTES] = RTC_savedata_data[24];
+			latched_RTC_data[RTC_OFFSET_HOURS] = RTC_savedata_data[28];
+			latched_RTC_data[RTC_OFFSET_DAY_LOW] = RTC_savedata_data[32];
+			latched_RTC_data[RTC_OFFSET_DAY_HIGH] = RTC_savedata_data[36];
+
+			time_t saved_now_time = *((time_t*)(RTC_savedata_data + 40));
+
+			time_t now_time;
+			time(&now_time);
+
+			time_t time_elapsed__sec = now_time - saved_now_time;
+			for (time_t t = 0; t < time_elapsed__sec; t++) {
+				RTC_time_lapse__1sec();
+			}
+
+			M_debug_printf("*********************************************\n");
+			M_debug_printf("<RTC LOAD> now_time = %lld\n", now_time);
+			M_debug_printf("<RTC LOAD> saved_now_time = %lld\n", saved_now_time);
+			M_debug_printf("<RTC LOAD> time_elapsed__sec = %lld\n", time_elapsed__sec);
+			M_debug_printf("*********************************************\n");
 		}
 		//else if (cart_mbc_type == CART_MBC_TYPE::OTHER) {
 		else {//OTHER
@@ -8008,6 +8174,14 @@ public:
 
 		apply_cheat_code_list(resident_cheat_code_list);
 
+		frame_counter++;
+		if (frame_counter >= 60) {
+			frame_counter = 0;
+
+			RTC_time_lapse__1sec();
+
+			//M_debug_printf("1秒カウント\n");
+		}
 	}
 };
 

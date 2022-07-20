@@ -863,6 +863,54 @@ private:
 	uint8_t RTC_data[RTC_DATA_SIZE] = { 0x00 };
 	uint8_t latched_RTC_data[RTC_DATA_SIZE] = { 0x00 };
 	bool latched_flag = false;
+
+	void RTC_time_lapse__Nsec(time_t N) {
+		if (N <= 0) {
+			return;
+		}
+		time_t elapse_sec = (N % 60);
+		time_t elapse_min = ((N % (60 * 60)) / (60));
+		time_t elapse_hou = ((N % (60 * 60 * 24)) / (60 * 60));
+		time_t elapse_day = (N / (60 * 60 * 24));
+		if (elapse_day > 512) {
+			elapse_day = 512;
+		}
+		M_debug_printf("######################################################\n");
+		M_debug_printf("<RTC_time_lapse__Nsec>\n");
+		M_debug_printf("elapse_sec = %lld\n", elapse_sec);
+		M_debug_printf("elapse_min = %lld\n", elapse_min);
+		M_debug_printf("elapse_hou = %lld\n", elapse_hou);
+		M_debug_printf("elapse_day = %lld\n", elapse_day);
+		M_debug_printf("######################################################\n");
+		RTC_data[RTC_OFFSET_SECONDS] += elapse_sec;
+		if (RTC_data[RTC_OFFSET_SECONDS] >= 60) {
+			RTC_time_lapse__1min();
+		}
+		RTC_data[RTC_OFFSET_MINUTES] += elapse_min;
+		if (RTC_data[RTC_OFFSET_MINUTES] >= 60) {
+			RTC_time_lapse__1hou();
+		}
+		RTC_data[RTC_OFFSET_HOURS] += elapse_hou;
+		if (RTC_data[RTC_OFFSET_HOURS] >= 24) {
+			RTC_time_lapse__1day();
+		}
+		uint16_t RTC_day = RTC_data[RTC_OFFSET_DAY_LOW];
+		if ((RTC_data[RTC_OFFSET_DAY_HIGH] & 0b00000001) != 0) {
+			RTC_day |= 0b100000000;
+		}
+		RTC_day += elapse_day;
+		RTC_data[RTC_OFFSET_DAY_LOW] = (RTC_day & 0b11111111);
+		if (RTC_day >= 256) {
+			if (RTC_day > 0b111111111) {
+				RTC_data[RTC_OFFSET_DAY_HIGH] |= 0b10000000;
+				RTC_data[RTC_OFFSET_DAY_HIGH] &= 0b11000000;
+			}
+			else {
+				RTC_data[RTC_OFFSET_DAY_HIGH] |= 0b00000001;
+			}
+		}
+	}
+
 	void RTC_time_lapse__1sec() {
 		RTC_data[RTC_OFFSET_SECONDS]++;
 		if (RTC_data[RTC_OFFSET_SECONDS] >= 60) {
@@ -2256,8 +2304,8 @@ private:
 			time(&now_time);
 
 			time_t time_elapsed__sec = now_time - saved_now_time;
-			for (time_t t = 0; t < time_elapsed__sec; t++) {
-				RTC_time_lapse__1sec();
+			if (time_elapsed__sec > 0) {
+				RTC_time_lapse__Nsec(time_elapsed__sec);
 			}
 
 			M_debug_printf("*********************************************\n");

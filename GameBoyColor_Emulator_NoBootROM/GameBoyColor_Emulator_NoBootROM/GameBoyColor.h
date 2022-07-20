@@ -2122,7 +2122,7 @@ private:
 			return;
 		}
 
-		if (cart_mbc_type != CART_MBC_TYPE::MBC2 && Main::SRAM_size == 0) {//MBCが2でなくなおかつSRAMのサイズが0のとき
+		if (cart_mbc_type != CART_MBC_TYPE::MBC2 && cart_mbc_type != CART_MBC_TYPE::MBC3 && Main::SRAM_size == 0) {//MBCが2と3でなくなおかつSRAMのサイズが0のとき
 			return;
 		}
 
@@ -2158,14 +2158,16 @@ private:
 			}
 		}
 		else if (cart_mbc_type == CART_MBC_TYPE::MBC3) {
-			tmp_write_size = 0x2000;
-			if (fwrite(&(gbx_ram.RAM[0xA000]), 1, tmp_write_size, savedata_fp) != tmp_write_size) {
-				goto save_gamedata_error;
-			}
-			if (Main::SRAM_size > 8) {
-				tmp_write_size = ((Main::SRAM_size - 8) * 1024);
-				if (fwrite(SRAM_bank_data_ptr, 1, tmp_write_size, savedata_fp) != tmp_write_size) {
+			if (Main::SRAM_size != 0) {//SRAMのサイズが0でないとき
+				tmp_write_size = 0x2000;
+				if (fwrite(&(gbx_ram.RAM[0xA000]), 1, tmp_write_size, savedata_fp) != tmp_write_size) {
 					goto save_gamedata_error;
+				}
+				if (Main::SRAM_size > 8) {
+					tmp_write_size = ((Main::SRAM_size - 8) * 1024);
+					if (fwrite(SRAM_bank_data_ptr, 1, tmp_write_size, savedata_fp) != tmp_write_size) {
+						goto save_gamedata_error;
+					}
 				}
 			}
 
@@ -2223,7 +2225,7 @@ private:
 			return;
 		}
 
-		if (cart_mbc_type != CART_MBC_TYPE::MBC2 && Main::SRAM_size == 0) {//MBCが2でなくなおかつSRAMのサイズが0のとき
+		if (cart_mbc_type != CART_MBC_TYPE::MBC2 && cart_mbc_type != CART_MBC_TYPE::MBC3 && Main::SRAM_size == 0) {//MBCが2と3でなくなおかつSRAMのサイズが0のとき
 			return;
 		}
 
@@ -2254,14 +2256,16 @@ private:
 			}
 		}
 		else if (cart_mbc_type == CART_MBC_TYPE::MBC3) {
-			tmp_read_size = 0x2000;
-			if (fread(&(gbx_ram.RAM[0xA000]), 1, tmp_read_size, savedata_fp) != tmp_read_size) {
-				goto load_gamedata_error;
-			}
-			if (Main::SRAM_size > 8) {
-				tmp_read_size = ((Main::SRAM_size - 8) * 1024);
-				if (fread(SRAM_bank_data_ptr, 1, tmp_read_size, savedata_fp) != tmp_read_size) {
+			if (Main::SRAM_size != 0) {//SRAMのサイズが0でないとき
+				tmp_read_size = 0x2000;
+				if (fread(&(gbx_ram.RAM[0xA000]), 1, tmp_read_size, savedata_fp) != tmp_read_size) {
 					goto load_gamedata_error;
+				}
+				if (Main::SRAM_size > 8) {
+					tmp_read_size = ((Main::SRAM_size - 8) * 1024);
+					if (fread(SRAM_bank_data_ptr, 1, tmp_read_size, savedata_fp) != tmp_read_size) {
+						goto load_gamedata_error;
+					}
 				}
 			}
 

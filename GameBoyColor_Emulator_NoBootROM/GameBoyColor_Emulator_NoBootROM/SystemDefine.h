@@ -27,7 +27,8 @@
 
 //#define GAMEBOYCOLOR_EMULATOR_DEBUG
 
-#define TITLE "ゲームボーイカラーのエミュレーター(BootROMなしのやつ)"
+#define TITLE "ゲームボーイカラーのエミュレーター"
+//#define TITLE "ゲームボーイカラーのエミュレーター(BootROMなしのやつ)"
 //#define TITLE "GameboyColor Emulator"
 
 #define GBX_WIDTH 160

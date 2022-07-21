@@ -1764,6 +1764,8 @@ private:
 						}
 						else {//DAY_HIGH
 							RTC_data[RTC_OFFSET_DAY_HIGH] = (value & 0b11000001);
+
+							M_debug_printf("<RTC WRITE> RTC_data[RTC_OFFSET_DAY_HIGH] = 0x%02X\n", RTC_data[RTC_OFFSET_DAY_HIGH]);
 						}
 					}
 				}
@@ -2316,6 +2318,14 @@ private:
 			M_debug_printf("<RTC LOAD> now_time = %lld\n", now_time);
 			M_debug_printf("<RTC LOAD> saved_now_time = %lld\n", saved_now_time);
 			M_debug_printf("<RTC LOAD> time_elapsed__sec = %lld\n", time_elapsed__sec);
+			M_debug_printf("\n");
+			M_debug_printf("<RTC LOAD> RTC_data[RTC_OFFSET_DAY_LOW] = 0x%02X\n", RTC_data[RTC_OFFSET_DAY_LOW]);
+			M_debug_printf("<RTC LOAD> RTC_data[RTC_OFFSET_DAY_HIGH] = 0x%02X\n", RTC_data[RTC_OFFSET_DAY_HIGH]);
+			M_debug_printf("<RTC LOAD> RTC_data[RTC_OFFSET_DAY_HIGH] #MSB = %s\n", ((RTC_data[RTC_OFFSET_DAY_HIGH] & 0b10000000) != 0) ? "true" : "false");
+			M_debug_printf("\n");
+			M_debug_printf("<RTC LOAD> latched_RTC_data[RTC_OFFSET_DAY_LOW] = 0x%02X\n", latched_RTC_data[RTC_OFFSET_DAY_LOW]);
+			M_debug_printf("<RTC LOAD> latched_RTC_data[RTC_OFFSET_DAY_HIGH] = 0x%02X\n", latched_RTC_data[RTC_OFFSET_DAY_HIGH]);
+			M_debug_printf("<RTC LOAD> latched_RTC_data[RTC_OFFSET_DAY_HIGH] #MSB = %s\n", ((latched_RTC_data[RTC_OFFSET_DAY_HIGH] & 0b10000000) != 0) ? "true" : "false");
 			M_debug_printf("*********************************************\n");
 		}
 		//else if (cart_mbc_type == CART_MBC_TYPE::OTHER) {
